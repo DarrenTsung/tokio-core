@@ -99,11 +99,12 @@ extern crate bytes;
 extern crate futures;
 extern crate iovec;
 extern crate mio;
-extern crate tokio;
+extern crate net2;
 extern crate tokio_executor;
 extern crate tokio_io;
 extern crate tokio_reactor;
 extern crate tokio_timer;
+extern crate tokio;
 
 #[macro_use]
 extern crate scoped_tls;

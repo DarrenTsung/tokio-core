@@ -5,10 +5,11 @@ use std::net::{self, SocketAddr, Shutdown};
 use std::time::Duration;
 
 use bytes::{Buf, BufMut};
-use futures::stream::Stream;
 use futures::{Future, Poll, Async};
+use futures::stream::Stream;
 use iovec::IoVec;
 use mio;
+use net2;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use reactor::{Handle, PollEvented2};
@@ -258,11 +259,26 @@ impl TcpStream {
     /// connection or during the socket creation, that error will be returned to
     /// the future instead.
     pub fn connect(addr: &SocketAddr, handle: &Handle) -> TcpStreamNew {
-        let inner = match mio::net::TcpStream::connect(addr) {
-            Ok(tcp) => TcpStream::new(tcp, handle),
+        let inner = match Self::connect_reuse(addr) {
+            Ok(tcp) => {
+                match mio::net::TcpStream::connect_stream(tcp, addr) {
+                    Ok(tcp) => TcpStream::new(tcp, handle),
+                    Err(e) => TcpStreamNewState::Error(e),
+                }
+            }
             Err(e) => TcpStreamNewState::Error(e),
         };
+
         TcpStreamNew { inner: inner }
+    }
+
+    fn connect_reuse(addr: &SocketAddr) -> Result<::std::net::TcpStream, io::Error> {
+        let tcp_builder = match *addr {
+            SocketAddr::V4(_) => net2::TcpBuilder::new_v4()?,
+            SocketAddr::V6(_) => net2::TcpBuilder::new_v6()?,
+        };
+        tcp_builder.reuse_address(true)?;
+        tcp_builder.to_tcp_stream()
     }
 
     /// Create a new TCP stream connected to the specified address.
